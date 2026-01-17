@@ -36,30 +36,24 @@ exports.createUsuario = async (req, res) => {
     const { nombre, apellido, email, password, rol_id } = req.body;
     
     try {
-        // Verificar si el usuario ya existe
         const [existe] = await db.execute('SELECT * FROM USUARIO WHERE email = ?', [email]);
         if (existe.length > 0) {
             return res.status(400).json({ message: "El correo ya está registrado" });
         }
 
-        // Determinar microempresa_id según el rol
         let microempresa_id = req.user.microempresa_id;
         
-        // Si es super_admin creando para otra empresa
         if (req.user.rol === 'super_admin' && req.body.microempresa_id) {
             microempresa_id = req.body.microempresa_id;
         }
 
-        // Validar que no se cree super_admin desde otros roles
         if (rol_id == 1 && req.user.rol !== 'super_admin') {
             return res.status(403).json({ message: "No puedes crear usuarios super admin" });
         }
 
-        // Encriptar contraseña
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Insertar usuario
         await db.execute(
             'INSERT INTO USUARIO (nombre, apellido, email, password, microempresa_id, rol_id) VALUES (?, ?, ?, ?, ?, ?)',
             [nombre, apellido, email, hashedPassword, microempresa_id, rol_id]
@@ -78,7 +72,6 @@ exports.updateEstado = async (req, res) => {
     const { estado } = req.body;
     
     try {
-        // Verificar permisos
         const [usuario] = await db.execute(
             'SELECT microempresa_id, rol_id FROM USUARIO WHERE id_usuario = ?',
             [id]
@@ -88,14 +81,10 @@ exports.updateEstado = async (req, res) => {
             return res.status(404).json({ message: "Usuario no encontrado" });
         }
 
-        // Super admin puede modificar cualquier usuario
         if (req.user.rol !== 'super_admin') {
-            // Administradores solo pueden modificar usuarios de su empresa
             if (usuario[0].microempresa_id !== req.user.microempresa_id) {
                 return res.status(403).json({ message: "No puedes modificar usuarios de otra empresa" });
             }
-            
-            // No pueden modificar super admins
             if (usuario[0].rol_id == 1) {
                 return res.status(403).json({ message: "No puedes modificar super admins" });
             }
@@ -109,5 +98,43 @@ exports.updateEstado = async (req, res) => {
         res.json({ message: `Usuario ${estado === 'activo' ? 'activado' : 'desactivado'} exitosamente` });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// --- NUEVA FUNCIÓN: ACTUALIZAR PERFIL (CON FOTO) ---
+exports.actualizarPerfil = async (req, res) => {
+    try {
+        const { nombre, apellido, telefono } = req.body;
+        const id_usuario = req.user.id; // Asumiendo que tu verifyToken guarda el ID en req.user.id
+        let foto_url = null;
+
+        // Si multer procesó una foto
+        if (req.file) {
+            foto_url = req.file.filename;
+        }
+
+        let query;
+        let params;
+
+        if (foto_url) {
+            // Actualización incluyendo la nueva foto
+            query = 'UPDATE USUARIO SET nombre = ?, apellido = ?, telefono = ?, foto_url = ? WHERE id_usuario = ?';
+            params = [nombre, apellido, telefono, foto_url, id_usuario];
+        } else {
+            // Actualización sin cambiar la foto actual
+            query = 'UPDATE USUARIO SET nombre = ?, apellido = ?, telefono = ? WHERE id_usuario = ?';
+            params = [nombre, apellido, telefono, id_usuario];
+        }
+
+        await db.execute(query, params);
+
+        res.json({ 
+            message: "Perfil actualizado correctamente",
+            foto_url: foto_url // Enviamos esto para que el frontend actualice la imagen
+        });
+
+    } catch (error) {
+        console.error("Error en actualizarPerfil:", error);
+        res.status(500).json({ message: "Error interno al actualizar el perfil" });
     }
 };

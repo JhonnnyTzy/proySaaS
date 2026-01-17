@@ -6,6 +6,7 @@ const { verifyToken } = require('../middleware/auth');
 // Rutas públicas
 router.post('/register', authController.registrar);
 router.post('/login', authController.login);
+router.get('/microempresas', authController.getMicroempresas);
 
 // Ruta protegida para verificar token
 router.get('/verify', verifyToken, authController.verifyToken);

@@ -1,11 +1,15 @@
-import { AppShell, Burger, Group, NavLink, Button, Text, Avatar, Menu } from '@mantine/core';
+import { AppShell, Burger, Group, NavLink, Button, Text, Avatar, Menu, ScrollArea } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { 
   IconHome2, 
   IconUsers, 
   IconLogout,
   IconUserCircle,
-  IconSettings
+  IconSettings,
+  IconPackage,      
+  IconShoppingCart, 
+  IconCreditCard,
+  IconAddressBook // Icono para Clientes
 } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logout } from '../services/auth';
@@ -21,13 +25,20 @@ export function MainLayout({ children }) {
   };
 
   const getNavItems = () => {
+    // 1. Rutas Básicas (Para todos)
     const items = [
-      { label: 'Dashboard', icon: IconHome2, path: '/dashboard', roles: ['super_admin', 'administrador', 'microempresa_P', 'vendedor'] },
+      { label: 'Dashboard', icon: IconHome2, path: '/dashboard' },
     ];
 
-    // Solo ADMIN y MICROEMPRESA_P ven Usuarios
-    if (['administrador', 'microempresa_P', 'super_admin'].includes(user?.rol)) {
+    // 2. Rutas de Operación (Visibles para todos: Vendedor, Admin, SuperAdmin)
+    items.push({ label: 'Clientes', icon: IconAddressBook, path: '/clientes' });
+    items.push({ label: 'Inventario', icon: IconPackage, path: '/inventario' });
+    items.push({ label: 'Ventas', icon: IconShoppingCart, path: '/ventas' });
+
+    // 3. Rutas de Administración (Solo Admin y SuperAdmin)
+    if (['administrador', 'super_admin'].includes(user?.rol)) {
       items.push({ label: 'Usuarios', icon: IconUsers, path: '/usuarios' });
+      items.push({ label: 'Mi Plan / Pagos', icon: IconCreditCard, path: '/suscripcion' });
     }
 
     return items;
@@ -43,11 +54,7 @@ export function MainLayout({ children }) {
         <Group h="100%" justify="space-between">
           <Group>
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" />
-            <Group gap="xs">
-              <Text fw={700} size="xl" c="blue.7">
-                Gestión Microempresas
-              </Text>
-            </Group>
+            <Text fw={900} size="xl" c="blue.7">GESTIÓN PRO</Text>
           </Group>
 
           <Group>
@@ -55,16 +62,10 @@ export function MainLayout({ children }) {
               <Menu.Target>
                 <Button variant="subtle" p="xs">
                   <Group gap="sm">
-                    <Avatar size="sm" color="blue" radius="xl">
-                      {user?.nombre?.charAt(0)}
-                    </Avatar>
-                    <div>
-                      <Text size="sm" fw={500}>
-                        {user?.nombre} {user?.apellido}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {user?.rol?.replace('_', ' ')}
-                      </Text>
+                    <Avatar size="sm" color="blue" radius="xl">{user?.nombre?.charAt(0)}</Avatar>
+                    <div style={{ textAlign: 'left' }}>
+                      <Text size="sm" fw={500}>{user?.nombre} {user?.apellido}</Text>
+                      <Text size="xs" c="dimmed">{user?.rol?.replace('_', ' ')}</Text>
                     </div>
                   </Group>
                 </Button>
@@ -72,27 +73,27 @@ export function MainLayout({ children }) {
 
               <Menu.Dropdown>
                 <Menu.Label>Cuenta</Menu.Label>
-                <Menu.Item leftSection={<IconUserCircle size={14} />}>
+                <Menu.Item 
+                  leftSection={<IconUserCircle size={14} />} 
+                  onClick={() => navigate('/perfil')}
+                >
                   Mi Perfil
                 </Menu.Item>
-                <Menu.Item leftSection={<IconSettings size={14} />}>
+                <Menu.Item 
+                  leftSection={<IconSettings size={14} />}
+                  onClick={() => navigate('/configuracion')}
+                >
                   Configuración
                 </Menu.Item>
                 
                 <Menu.Divider />
-                
                 <Menu.Label>Empresa</Menu.Label>
-                <Text size="sm" c="dimmed" px="xs" py="xs">
-                  {user?.empresa_nombre || 'Super Admin'}
+                <Text size="sm" fw={600} px="xs" py="xs" c="blue">
+                  {user?.empresa_nombre || 'Sin Empresa'}
                 </Text>
                 
                 <Menu.Divider />
-                
-                <Menu.Item 
-                  color="red" 
-                  leftSection={<IconLogout size={14} />}
-                  onClick={handleLogout}
-                >
+                <Menu.Item color="red" leftSection={<IconLogout size={14} />} onClick={handleLogout}>
                   Cerrar Sesión
                 </Menu.Item>
               </Menu.Dropdown>
@@ -102,35 +103,32 @@ export function MainLayout({ children }) {
       </AppShell.Header>
 
       <AppShell.Navbar p="md">
-        <Text size="sm" c="dimmed" mb="md" px="xs">
-          Navegación
-        </Text>
+        <AppShell.Section grow component={ScrollArea}>
+          <Text size="xs" fw={700} c="dimmed" mb="md" tt="uppercase">Navegación</Text>
+          {getNavItems().map((item, index) => (
+            <NavLink
+              key={index}
+              label={item.label}
+              leftSection={<item.icon size={20} stroke={1.5} />}
+              onClick={() => navigate(item.path)}
+              active={window.location.pathname === item.path}
+              variant="filled"
+              mb="xs"
+              radius="md"
+            />
+          ))}
+        </AppShell.Section>
         
-        {getNavItems().map((item, index) => (
-          <NavLink
-            key={index}
-            label={item.label}
-            leftSection={<item.icon size={18} />}
-            onClick={() => navigate(item.path)}
-            active={window.location.pathname === item.path}
-            variant="filled"
-            mb="xs"
-            radius="md"
-          />
-        ))}
-        
-        <div style={{ marginTop: 'auto', paddingTop: '20px' }}>
-          <Text size="xs" c="dimmed" mb="xs">
-            Estado del Sistema
-          </Text>
+        <AppShell.Section>
+          <Text size="xs" c="dimmed" mb="xs">Estado del Sistema</Text>
           <Group gap="xs">
-            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: 'green' }} />
+            <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#40C057' }} />
             <Text size="sm">En línea</Text>
           </Group>
-        </div>
+        </AppShell.Section>
       </AppShell.Navbar>
 
-      <AppShell.Main>{children}</AppShell.Main>
+      <AppShell.Main bg="gray.0">{children}</AppShell.Main>
     </AppShell>
   );
 }

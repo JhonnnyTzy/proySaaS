@@ -10,14 +10,18 @@ import '@mantine/notifications/styles.css';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Registrar } from './pages/Registrar';
+import { SetupEmpresa } from './pages/SetupEmpresa';
 import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword'; // <-- Importar esta
+import { ResetPassword } from './pages/ResetPassword';
 import { MainLayout } from './components/MainLayout';
 import Dashboard from './pages/Dashboard';
 import Usuarios from './pages/Usuarios';
+import Clientes from './pages/Clientes'; // Importado correctamente
+import Perfil from './pages/Perfil'; 
+import Suscripcion from './pages/Suscripcion'; 
+
 import { getCurrentUser } from './services/auth';
 
-// Tema personalizado
 const theme = createTheme({
   primaryColor: 'blue',
   fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif',
@@ -53,66 +57,89 @@ function App() {
       <Notifications position="top-right" zIndex={2000} />
       <BrowserRouter>
         <Routes>
-          {/* Rutas Públicas */}
+          {/* --- RUTAS PÚBLICAS --- */}
           <Route path="/" element={<Home />} />
           
-          <Route 
-            path="/login" 
-            element={
-              <PublicRoute>
-                <Login />
-              </PublicRoute>
-            } 
-          />
+          <Route path="/login" element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          } />
 
-          <Route 
-            path="/registrar" 
-            element={
-              <PublicRoute>
-                <Registrar />
-              </PublicRoute>
-            } 
-          />
+          <Route path="/registrar" element={
+            <PublicRoute>
+              <Registrar />
+            </PublicRoute>
+          } />
 
-          {/* Rutas de recuperación de contraseña */}
-          <Route 
-            path="/forgot-password" 
-            element={
-              <PublicRoute>
-                <ForgotPassword />
-              </PublicRoute>
-            } 
-          />
+          <Route path="/forgot-password" element={
+            <PublicRoute>
+              <ForgotPassword />
+            </PublicRoute>
+          } />
 
-          <Route 
-            path="/reset-password/:token" 
-            element={
-              <PublicRoute>
-                <ResetPassword />
-              </PublicRoute>
-            } 
-          />
+          <Route path="/reset-password/:token" element={
+            <PublicRoute>
+              <ResetPassword />
+            </PublicRoute>
+          } />
 
-          {/* Rutas Protegidas */}
-          <Route 
-            path="/dashboard" 
-            element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            } 
-          />
+          {/* --- RUTAS PROTEGIDAS --- */}
+          <Route path="/dashboard" element={
+            <PrivateRoute>
+              <Dashboard />
+            </PrivateRoute>
+          } />
 
-          <Route 
-            path="/usuarios" 
-            element={
-              <PrivateRoute requiredRoles={['super_admin', 'administrador', 'microempresa_P']}>
-                <Usuarios />
-              </PrivateRoute>
-            } 
-          />
+          {/* RUTA DE CLIENTES (Añadida aquí para la defensa) */}
+          <Route path="/clientes" element={
+            <PrivateRoute>
+              <Clientes />
+            </PrivateRoute>
+          } />
 
-          {/* Redirección por defecto */}
+          <Route path="/setup-empresa" element={
+            <PrivateRoute>
+              <SetupEmpresa />
+            </PrivateRoute>
+          } />
+
+          <Route path="/usuarios" element={
+            <PrivateRoute requiredRoles={['super_admin', 'administrador', 'microempresa_P']}>
+              <Usuarios />
+            </PrivateRoute>
+          } />
+
+          <Route path="/perfil" element={
+            <PrivateRoute>
+              <Perfil />
+            </PrivateRoute>
+          } />
+
+          <Route path="/configuracion" element={
+            <PrivateRoute requiredRoles={['super_admin', 'administrador']}>
+              <Perfil />
+            </PrivateRoute>
+          } />
+
+          <Route path="/suscripcion" element={
+            <PrivateRoute requiredRoles={['super_admin', 'administrador']}>
+              <Suscripcion />
+            </PrivateRoute>
+          } />
+
+          <Route path="/inventario" element={
+            <PrivateRoute>
+              <Dashboard />
+            </PrivateRoute>
+          } />
+
+          <Route path="/ventas" element={
+            <PrivateRoute>
+              <Dashboard />
+            </PrivateRoute>
+          } />
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

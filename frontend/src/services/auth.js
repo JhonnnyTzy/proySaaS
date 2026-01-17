@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// IMPORTANTE: Cambiar a localhost:3000
 const API_URL = 'http://localhost:3000/api';
 
 const api = axios.create({
@@ -10,7 +9,6 @@ const api = axios.create({
     }
 });
 
-// Interceptor para agregar token
 api.interceptors.request.use(config => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -19,17 +17,13 @@ api.interceptors.request.use(config => {
     return config;
 });
 
-// Login
 export const login = async (email, password) => {
     try {
-        console.log('Intentando login a:', `${API_URL}/auth/login`);
         const response = await api.post('/auth/login', { email, password });
-        
         if (response.data.token) {
             localStorage.setItem('token', response.data.token);
             localStorage.setItem('user', JSON.stringify(response.data.usuario));
         }
-        
         return response.data;
     } catch (error) {
         console.error('Error en login:', error);
@@ -37,17 +31,21 @@ export const login = async (email, password) => {
     }
 };
 
-// Logout
 export const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    delete api.defaults.headers.common['Authorization'];
 };
 
-// Obtener usuario actual
+// CORRECCIÓN: Manejo robusto de errores de parsing
 export const getCurrentUser = () => {
-    const userStr = localStorage.getItem('user');
-    return userStr ? JSON.parse(userStr) : null;
+    try {
+        const userStr = localStorage.getItem('user');
+        if (!userStr || userStr === "undefined") return null;
+        return JSON.parse(userStr);
+    } catch (error) {
+        console.error("Error al obtener usuario:", error);
+        return null;
+    }
 };
 
 export default api;
