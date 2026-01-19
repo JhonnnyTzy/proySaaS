@@ -192,3 +192,70 @@ exports.getListaEmpresasParaSelector = async (req, res) => {
         res.status(500).json({ error: "Error al cargar lista de empresas" });
     }
 };
+// =========================================================
+// 3. EDITAR CLIENTE (CORREGIDO Y MEJORADO)
+// =========================================================
+exports.updateCliente = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nombre, razon_social, ci_nit, telefono, email, microempresa_id_manual } = req.body;
+
+        // 1. Verificar si el cliente existe
+        const [existente] = await db.query('SELECT * FROM cliente WHERE id_cliente = ?', [id]);
+        if (existente.length === 0) {
+            return res.status(404).json({ message: 'Cliente no encontrado' });
+        }
+
+        // 2. Verificar permisos (Seguridad)
+        if (req.user.rol !== 'super_admin') {
+            if (existente[0].microempresa_id !== req.user.microempresa_id) {
+                return res.status(403).json({ message: 'No tienes permiso para editar este cliente' });
+            }
+        }
+
+        // 3. VALIDACIÓN DE DUPLICADOS (CI/NIT y EMAIL)
+        // Buscamos si hay OTRO cliente (id != id actual) con el mismo CI
+        const [duplicadoCi] = await db.query(
+            'SELECT id_cliente FROM cliente WHERE ci_nit = ? AND id_cliente != ?', 
+            [ci_nit, id]
+        );
+        if (duplicadoCi.length > 0) {
+            return res.status(400).json({ message: `El CI/NIT ${ci_nit} ya está registrado en otro cliente.` });
+        }
+
+        // 4. Preparar la consulta de actualización
+        // Usamos valores NULL si los campos vienen vacíos para mantener limpieza en la BD
+        let query = 'UPDATE cliente SET nombre=?, razon_social=?, ci_nit=?, telefono=?, email=?';
+        let params = [
+            nombre, 
+            razon_social || null, 
+            ci_nit, 
+            telefono || null, 
+            email || null
+        ];
+
+        // Solo el Super Admin puede cambiar la empresa
+        if (req.user.rol === 'super_admin' && microempresa_id_manual) {
+            query += ', microempresa_id=?';
+            params.push(microempresa_id_manual);
+        }
+
+        query += ' WHERE id_cliente=?';
+        params.push(id);
+
+        // 5. Ejecutar actualización
+        await db.query(query, params);
+        
+        res.json({ message: 'Cliente actualizado correctamente' });
+
+    } catch (error) {
+        console.error("❌ Error en updateCliente:", error);
+        
+        // Mensaje de error más descriptivo si falla la BD
+        if (error.code === 'ER_DUP_ENTRY') {
+            return res.status(400).json({ message: 'Ya existe un cliente con ese CI o Email.' });
+        }
+        
+        res.status(500).json({ message: 'Error interno al actualizar (revisa la terminal)' });
+    }
+};
