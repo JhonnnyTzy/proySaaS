@@ -1,59 +1,117 @@
 const db = require('../config/db');
 
-// 1. REGISTRAR (Estándar para todos)
+// =========================================================
+// 1. REGISTRAR CLIENTE
+// =========================================================
 exports.createCliente = async (req, res) => {
-    // 1. Extraemos los datos del cuerpo de la petición
-    const { nombre_razon_social, ci_nit, telefono, email } = req.body;
-    const microempresa_id = req.user.microempresa_id; 
+    const { nombre, razon_social, ci_nit, telefono, email, microempresa_id_manual } = req.body;
+    const { rol, microempresa_id } = req.user;
+
+    // LÓGICA DE ASIGNACIÓN:
+    // Super Admin puede asignar manualmente. Usuario normal se asigna a sí mismo.
+    let idEmpresaFinal = microempresa_id;
+    if (rol === 'super_admin' && microempresa_id_manual) {
+        idEmpresaFinal = microempresa_id_manual;
+    }
 
     try {
-        // 2. Si el email viene vacío o no existe, le asignamos NULL
+        // Limpieza de nulos
         const emailFinal = (email && email.trim() !== '') ? email : null;
+        const razonSocialFinal = (razon_social && razon_social.trim() !== '') ? razon_social : null;
+        const telefonoFinal = (telefono && telefono.trim() !== '') ? telefono : null;
 
         await db.execute(
-            'INSERT INTO CLIENTE (nombre_razon_social, ci_nit, telefono, email, microempresa_id) VALUES (?, ?, ?, ?, ?)',
-            [nombre_razon_social, ci_nit, telefono, emailFinal, microempresa_id]
+            `INSERT INTO CLIENTE 
+            (nombre, razon_social, ci_nit, telefono, email, microempresa_id, estado) 
+            VALUES (?, ?, ?, ?, ?, ?, 'activo')`,
+            [nombre, razonSocialFinal, ci_nit, telefonoFinal, emailFinal, idEmpresaFinal]
         );
+
         res.status(201).json({ message: "Cliente registrado con éxito" });
     } catch (error) {
-        // IMPORTANTE: Revisa tu consola de Node.js si esto falla
-        console.error("ERROR EN SQL:", error); 
+        console.error("ERROR EN SQL CREATE:", error); 
         res.status(500).json({ error: error.message });
     }
 };
 
-// 2. MODIFICAR (Aislamiento por microempresa)
+// =========================================================
+// 2. MODIFICAR CLIENTE (Edición completa)
+// =========================================================
 exports.updateCliente = async (req, res) => {
     const { id } = req.params;
-    const { nombre_razon_social } = req.body; // Puedes agregar más campos aquí si lo necesitas
+    const { nombre, razon_social, ci_nit, telefono, email, estado } = req.body; 
     const { rol, microempresa_id } = req.user;
 
     try {
         let query = '';
         let params = [];
 
-        // Lógica de seguridad:
-        // Si es Super Admin, podría editar cualquiera (opcional), 
-        // pero por seguridad mantenemos que solo el dueño edite sus datos.
-        // Aquí usamos la lógica estricta:
-        query = 'UPDATE CLIENTE SET nombre_razon_social = ? WHERE id_cliente = ? AND microempresa_id = ?';
-        params = [nombre_razon_social, id, microempresa_id];
+        const emailFinal = (email && email.trim() !== '') ? email : null;
+        const razonSocialFinal = (razon_social && razon_social.trim() !== '') ? razon_social : null;
+        const telefonoFinal = (telefono && telefono.trim() !== '') ? telefono : null;
 
-        // NOTA: Si quisieras que el Super Admin edite cualquier cliente, avísame para cambiar el WHERE.
+        if (rol === 'super_admin') {
+            query = `UPDATE CLIENTE SET nombre=?, razon_social=?, ci_nit=?, telefono=?, email=?, estado=? WHERE id_cliente=?`;
+            params = [nombre, razonSocialFinal, ci_nit, telefonoFinal, emailFinal, estado, id];
+        } else {
+            query = `UPDATE CLIENTE SET nombre=?, razon_social=?, ci_nit=?, telefono=?, email=?, estado=? WHERE id_cliente=? AND microempresa_id=?`;
+            params = [nombre, razonSocialFinal, ci_nit, telefonoFinal, emailFinal, estado, id, microempresa_id];
+        }
 
         const [result] = await db.execute(query, params);
 
         if (result.affectedRows === 0) {
-            return res.status(404).json({ message: "Cliente no encontrado o no tienes permiso para editarlo" });
+            return res.status(404).json({ message: "No se pudo actualizar (no encontrado o sin permiso)" });
         }
 
-        res.json({ message: "Datos modificados exitosamente" });
+        res.json({ message: "Cliente actualizado correctamente" });
+    } catch (error) {
+        console.error("ERROR EN SQL UPDATE:", error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// =========================================================
+// 3. CAMBIAR ESTADO (INTERRUPTOR / SWITCH)
+// =========================================================
+exports.toggleEstado = async (req, res) => {
+    const { id } = req.params;
+    const { nuevoEstado } = req.body; // Esperamos 'activo' o 'inactivo'
+    const { rol, microempresa_id } = req.user;
+
+    // Validación básica
+    if (!['activo', 'inactivo'].includes(nuevoEstado)) {
+        return res.status(400).json({ message: "Estado inválido. Use 'activo' o 'inactivo'" });
+    }
+
+    try {
+        let query = '';
+        let params = [];
+
+        if (rol === 'super_admin') {
+            query = 'UPDATE CLIENTE SET estado = ? WHERE id_cliente = ?';
+            params = [nuevoEstado, id];
+        } else {
+            // Usuario normal: Solo cambia estado de SUS clientes
+            query = 'UPDATE CLIENTE SET estado = ? WHERE id_cliente = ? AND microempresa_id = ?';
+            params = [nuevoEstado, id, microempresa_id];
+        }
+
+        const [result] = await db.execute(query, params);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "No se pudo cambiar el estado" });
+        }
+
+        res.json({ message: `Estado actualizado a ${nuevoEstado}` });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
 
-// 3. BUSCAR TODOS (Lógica Inteligente: Super Admin ve TODO)
+// =========================================================
+// 4. OBTENER LISTA DE CLIENTES
+// =========================================================
 exports.getClientes = async (req, res) => {
     const { rol, microempresa_id } = req.user; 
 
@@ -61,20 +119,21 @@ exports.getClientes = async (req, res) => {
         let query = '';
         let params = [];
 
+        // NOTA IMPORTANTE:
+        // Quitamos el filtro "WHERE estado = 'activo'" para que la lista
+        // muestre también los inactivos (con el switch apagado).
+
         if (rol === 'super_admin') {
-            // SUPER ADMIN: Ve clientes de TODAS las empresas + Nombre de la empresa
             query = `
                 SELECT c.*, m.nombre as empresa_nombre 
                 FROM CLIENTE c 
                 JOIN MICROEMPRESA m ON c.microempresa_id = m.id_microempresa 
-                WHERE c.estado = 'activo'
                 ORDER BY c.id_cliente DESC
             `;
         } else {
-            // MORTALES (Admin/Vendedor): Solo ven su empresa
             query = `
                 SELECT * FROM CLIENTE 
-                WHERE microempresa_id = ? AND estado = 'activo'
+                WHERE microempresa_id = ? 
                 ORDER BY id_cliente DESC
             `;
             params = [microempresa_id];
@@ -88,30 +147,13 @@ exports.getClientes = async (req, res) => {
     }
 };
 
-// 4. ELIMINAR (Borrado Lógico)
+// =========================================================
+// 5. ELIMINAR (Borrado Lógico - Opción Legacy)
+// =========================================================
+// Esta función se mantiene por si en algún lugar sigues usando 
+// el botón de eliminar clásico en vez del switch.
 exports.deleteCliente = async (req, res) => {
     const { id } = req.params;
-    const microempresa_id = req.user.microempresa_id;
-
-    try {
-        // Solo borra si coincide el ID y la EMPRESA
-        const [result] = await db.execute(
-            'UPDATE CLIENTE SET estado = "inactivo" WHERE id_cliente = ? AND microempresa_id = ?',
-            [id, microempresa_id]
-        );
-
-        if (result.affectedRows === 0) {
-            return res.status(404).json({ message: "No se pudo eliminar (no encontrado o sin permiso)" });
-        }
-
-        res.json({ message: "Cliente eliminado lógicamente" });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-};
-
-// 5. MOSTRAR ELIMINADOS (Lógica Inteligente aplicada también aquí)
-exports.getEliminados = async (req, res) => {
     const { rol, microempresa_id } = req.user;
 
     try {
@@ -119,27 +161,34 @@ exports.getEliminados = async (req, res) => {
         let params = [];
 
         if (rol === 'super_admin') {
-            // El Super Admin también ve los ELIMINADOS de todos
-            query = `
-                SELECT c.*, m.nombre as empresa_nombre 
-                FROM CLIENTE c 
-                JOIN MICROEMPRESA m ON c.microempresa_id = m.id_microempresa 
-                WHERE c.estado = 'inactivo'
-                ORDER BY c.id_cliente DESC
-            `;
+            query = 'UPDATE CLIENTE SET estado = "inactivo" WHERE id_cliente = ?';
+            params = [id];
         } else {
-            // Usuarios normales solo ven sus eliminados
-            query = `
-                SELECT * FROM CLIENTE 
-                WHERE microempresa_id = ? AND estado = 'inactivo'
-                ORDER BY id_cliente DESC
-            `;
-            params = [microempresa_id];
+            query = 'UPDATE CLIENTE SET estado = "inactivo" WHERE id_cliente = ? AND microempresa_id = ?';
+            params = [id, microempresa_id];
         }
 
-        const [rows] = await db.execute(query, params);
-        res.json(rows);
+        const [result] = await db.execute(query, params);
+
+        if (result.affectedRows === 0) return res.status(404).json({ message: "Error al eliminar" });
+
+        res.json({ message: "Cliente desactivado correctamente" });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+};
+
+// =========================================================
+// 6. LISTAR EMPRESAS (Para Selector del Super Admin)
+// =========================================================
+exports.getListaEmpresasParaSelector = async (req, res) => {
+    try {
+        const [empresas] = await db.execute(
+            'SELECT id_microempresa, nombre FROM MICROEMPRESA WHERE estado = "activa" ORDER BY nombre ASC'
+        );
+        res.json(empresas);
+    } catch (error) {
+        console.error("Error cargando empresas:", error);
+        res.status(500).json({ error: "Error al cargar lista de empresas" });
     }
 };

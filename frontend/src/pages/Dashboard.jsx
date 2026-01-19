@@ -1,195 +1,177 @@
 import { 
-    Container, 
-    Title, 
-    Text, 
-    Card, 
-    SimpleGrid, 
-    Group, 
-    Badge,
-    Center,
-    Stack
-    } from '@mantine/core';
-    import { 
-    IconBuilding, 
-    IconUsers, 
-    IconShoppingCart, 
-    IconPackage,
-    IconChartBar,
-    IconUser,
-    IconSettings
-    } from '@tabler/icons-react';
-    import { getCurrentUser } from '../services/auth';
+    Container, Title, Text, Card, SimpleGrid, Group, 
+    Badge, Stack, TextInput, Select, Paper, Divider, ThemeIcon 
+} from '@mantine/core';
+import { useState } from 'react';
+import { 
+    IconBuilding, IconUsers, IconShoppingCart, IconPackage,
+    IconChartBar, IconUser, IconSettings, IconSearch, 
+    IconCalendar, IconTrendingUp 
+} from '@tabler/icons-react';
+import { getCurrentUser } from '../services/auth';
 
-    const Dashboard = () => {
+const Dashboard = () => {
     const user = getCurrentUser();
+    
+    // --- ESTADOS PARA FILTRADO Y BÚSQUEDA ---
+    const [periodo, setPeriodo] = useState('mes');
+    const [busqueda, setBusqueda] = useState('');
 
-    // Dashboard para Super Admin
+    // --- BARRA DE HERRAMIENTAS PROFESIONAL ---
+    const renderFiltros = () => (
+        <Paper withBorder p="md" mb="xl" radius="md" shadow="sm" bg="gray.0">
+            <Group justify="space-between">
+                <TextInput 
+                    placeholder="Buscar métrica o sección..." 
+                    leftSection={<IconSearch size={18} stroke={1.5} />}
+                    style={{ flex: 1 }}
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.currentTarget.value)}
+                    variant="filled"
+                />
+                <Select 
+                    label="Período de análisis"
+                    placeholder="Seleccionar"
+                    leftSection={<IconCalendar size={18} stroke={1.5} />}
+                    data={[
+                        { value: 'hoy', label: 'Hoy' },
+                        { value: 'semana', label: 'Esta Semana' },
+                        { value: 'mes', label: 'Este Mes' },
+                    ]}
+                    value={periodo}
+                    onChange={setPeriodo}
+                    w={200}
+                />
+            </Group>
+        </Paper>
+    );
+
+    // --- COMPONENTE DE TARJETA REUTILIZABLE CON FILTRO ---
+    const MetricaCard = ({ titulo, valor, subtitulo, icono: Icono, color = "blue" }) => {
+        // Lógica de búsqueda: si el título no coincide con la búsqueda, no se muestra
+        if (busqueda && !titulo.toLowerCase().includes(busqueda.toLowerCase())) return null;
+
+        return (
+            <Card shadow="sm" padding="lg" radius="md" withBorder>
+                <Group justify="space-between" mb="xs">
+                    <Text size="xs" c="dimmed" fw={700} tt="uppercase">{titulo}</Text>
+                    <ThemeIcon color={color} variant="light" size="lg" radius="md">
+                        <Icono size={22} stroke={1.5} />
+                    </ThemeIcon>
+                </Group>
+                <Stack gap={0}>
+                    <Title order={2} fw={800}>{valor}</Title>
+                    <Text size="sm" c="dimmed" mt={4}>
+                        {subtitulo}
+                    </Text>
+                </Stack>
+            </Card>
+        );
+    };
+
+    // --- DASHBOARD: SUPER ADMIN ---
     const renderSuperAdminDashboard = () => (
-        <>
-        <Title order={2} mb="lg">Panel de Super Administrador</Title>
-        <Text c="dimmed" mb="xl">Administra todas las empresas del sistema</Text>
-        
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="xl">
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Empresas</Text>
-                <IconBuilding size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>15</Title>
-            <Text size="sm" c="dimmed" mt="xs">12 activas</Text>
-            </Card>
+        <Stack gap="md">
+            <Title order={2}>Panel de Control Global</Title>
+            <Text c="dimmed">Supervisión de todas las microempresas registradas</Text>
+            
+            {renderFiltros()}
 
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Usuarios</Text>
-                <IconUsers size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>84</Title>
-            <Text size="sm" c="dimmed" mt="xs">registrados</Text>
-            </Card>
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+                <MetricaCard titulo="Empresas Totales" valor="15" subtitulo="12 operando activamente" icono={IconBuilding} color="blue" />
+                <MetricaCard titulo="Usuarios Sistema" valor="84" subtitulo="5 nuevos esta semana" icono={IconUsers} color="cyan" />
+                <MetricaCard titulo="Ventas Red" valor="Bs. 125,400" subtitulo={`Total acumulado (${periodo})`} icono={IconShoppingCart} color="green" />
+                <MetricaCard titulo="Uso Servidor" valor="24%" subtitulo="Rendimiento óptimo" icono={IconChartBar} color="violet" />
+            </SimpleGrid>
 
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Ventas Totales</Text>
-                <IconShoppingCart size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>Bs. 125,400</Title>
-            <Text size="sm" c="dimmed" mt="xs">este mes</Text>
+            <Card withBorder radius="md" p="xl" mt="lg">
+                <Group justify="space-between" mb="md">
+                    <Text fw={700}>Acciones Rápidas de Administración</Text>
+                    <Badge color="orange" variant="outline">Requiere atención: 2</Badge>
+                </Group>
+                <Group gap="sm">
+                    <Badge size="lg" variant="light" color="blue" style={{ cursor: 'pointer' }}>Auditar Ventas</Badge>
+                    <Badge size="lg" variant="light" color="green" style={{ cursor: 'pointer' }}>Soporte Empresas</Badge>
+                    <Badge size="lg" variant="light" color="gray" style={{ cursor: 'pointer' }}>Configurar Planes</Badge>
+                </Group>
             </Card>
-
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Reportes</Text>
-                <IconChartBar size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>24</Title>
-            <Text size="sm" c="dimmed" mt="xs">generados</Text>
-            </Card>
-        </SimpleGrid>
-
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={3} mb="md">Acciones Rápidas</Title>
-            <Group>
-            <Badge size="lg" variant="light" color="blue">Ver Empresas</Badge>
-            <Badge size="lg" variant="light" color="green">Gestionar Usuarios</Badge>
-            <Badge size="lg" variant="light" color="orange">Ver Reportes</Badge>
-            <Badge size="lg" variant="light" color="violet">Configuración</Badge>
-            </Group>
-        </Card>
-        </>
+        </Stack>
     );
 
-    // Dashboard para Administradores/Dueños
+    // --- DASHBOARD: ADMINISTRADOR / DUEÑO ---
     const renderAdminDashboard = () => (
-        <>
-        <Title order={2} mb="lg">Dashboard - {user.empresa_nombre || 'Mi Empresa'}</Title>
-        <Text c="dimmed" mb="xl">Bienvenido de vuelta, {user.nombre}</Text>
-        
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mb="xl">
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Ventas Hoy</Text>
-                <IconShoppingCart size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>Bs. 1,250</Title>
-            <Text size="sm" c="dimmed" mt="xs">Total acumulado</Text>
-            </Card>
+        <Stack gap="md">
+            <Title order={2}>Dashboard de Negocio</Title>
+            <Text c="dimmed">Métricas clave para <b>{user.empresa_nombre}</b></Text>
 
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Productos en Stock</Text>
-                <IconPackage size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>45</Title>
-            <Text size="sm" c="dimmed" mt="xs">3 con stock bajo</Text>
-            </Card>
+            {renderFiltros()}
 
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Clientes</Text>
-                <IconUsers size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>28</Title>
-            <Text size="sm" c="dimmed" mt="xs">activos</Text>
-            </Card>
-        </SimpleGrid>
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+                <MetricaCard titulo="Ingresos" valor="Bs. 1,250" subtitulo={`Ventas de ${periodo}`} icono={IconTrendingUp} color="green" />
+                <MetricaCard titulo="Inventario" valor="45" subtitulo="3 productos con stock bajo" icono={IconPackage} color="orange" />
+                <MetricaCard titulo="Fidelización" valor="28" subtitulo="Clientes registrados" icono={IconUsers} color="blue" />
+            </SimpleGrid>
 
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={3} mb="md">Información de tu cuenta</Title>
-            <Stack gap="sm">
-            <Group>
-                <IconUser size={20} />
-                <Text>{user.nombre} {user.apellido}</Text>
-            </Group>
-            <Group>
-                <IconSettings size={20} />
-                <Text>Rol: <Badge color="blue">{user.rol}</Badge></Text>
-            </Group>
-            <Text size="sm" c="dimmed">
-                Último acceso: Hoy a las {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </Text>
-            </Stack>
-        </Card>
-        </>
+            <Card withBorder radius="md" mt="xl">
+                <Title order={4} mb="md">Resumen de Sesión</Title>
+                <Group gap="xl">
+                    <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Usuario</Text>
+                        <Text fw={600}>{user.nombre} {user.apellido}</Text>
+                    </Stack>
+                    <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Rol</Text>
+                        <Badge variant="dot">{user.rol}</Badge>
+                    </Stack>
+                    <Stack gap={2}>
+                        <Text size="xs" c="dimmed">Última Actividad</Text>
+                        <Text size="sm">Hoy, {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+                    </Stack>
+                </Group>
+            </Card>
+        </Stack>
     );
 
-    // Dashboard para Vendedores
+    // --- DASHBOARD: VENDEDOR ---
     const renderVendedorDashboard = () => (
-        <>
-        <Title order={2} mb="lg">Panel de Vendedor</Title>
-        <Text c="dimmed" mb="xl">Hola {user.nombre}, estas son tus métricas</Text>
-        
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mb="xl">
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Mis Ventas Hoy</Text>
-                <IconShoppingCart size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>Bs. 850</Title>
-            <Text size="sm" c="dimmed" mt="xs">5 transacciones</Text>
-            </Card>
+        <Stack gap="md">
+            <Title order={2}>Mi Actividad</Title>
+            <Text c="dimmed">Control de metas y ventas personales</Text>
 
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Ventas del Mes</Text>
-                <IconChartBar size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>Bs. 1,000</Title>
-            <Text size="sm" c="dimmed" mt="xs">Meta: Bs. 2,000</Text>
-            </Card>
+            {renderFiltros()}
 
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Group justify="space-between" mb="xs">
-                <Text size="sm" c="dimmed">Clientes Atendidos</Text>
-                <IconUsers size={24} color="#228be6" />
-            </Group>
-            <Title order={2}>18</Title>
-            <Text size="sm" c="dimmed" mt="xs">este mes</Text>
-            </Card>
-        </SimpleGrid>
-
-        <Card shadow="sm" padding="lg" radius="md" withBorder>
-            <Title order={3} mb="md">Próximas acciones</Title>
-            <Text>Puedes ver tu historial de ventas.</Text>
-            <Group mt="md">
-            <Badge size="lg" variant="light" color="orange">Mi Historial Ventas</Badge>
-            </Group>
-        </Card>
-        </>
+            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+                <MetricaCard titulo="Mis Ventas" valor="Bs. 850" subtitulo="Cierre de caja parcial" icono={IconShoppingCart} color="green" />
+                <MetricaCard titulo="Transacciones" valor="12" subtitulo={`Realizadas ${periodo}`} icono={IconChartBar} color="blue" />
+                <MetricaCard titulo="Clientes Nuevos" valor="4" icono={IconUser} color="teal" />
+            </SimpleGrid>
+        </Stack>
     );
 
     return (
         <Container size="xl" py="xl">
-        {user.rol === 'super_admin' && renderSuperAdminDashboard()}
-        {['administrador', 'microempresa_P'].includes(user.rol) && renderAdminDashboard()}
-        {user.rol === 'vendedor' && renderVendedorDashboard()}
-        
-        {/* Información común para todos */}
-        <Card shadow="sm" padding="lg" radius="md" withBorder mt="xl">
-            <Text size="sm" c="dimmed">
-            Sistema de Gestión Microempresas 
-            </Text>
-        </Card>
+            {/* Cabecera común */}
+            <Group justify="space-between" align="flex-start" mb="xl">
+                <Stack gap={0}>
+                    <Text fw={900} size="xl" c="blue.7" style={{ letterSpacing: 1 }}>GESTIÓN PRO</Text>
+                    <Text size="sm" c="dimmed">Módulo de Business Intelligence</Text>
+                </Stack>
+                <Badge variant="filled" color="blue" size="lg" radius="sm">Sistema Activo</Badge>
+            </Group>
+
+            <Divider mb="xl" />
+
+            {/* Renderización basada en Rol */}
+            {user.rol === 'super_admin' && renderSuperAdminDashboard()}
+            {['administrador', 'microempresa_P'].includes(user.rol) && renderAdminDashboard()}
+            {user.rol === 'vendedor' && renderVendedorDashboard()}
+
+            {/* Pie de página informativo */}
+            <Paper withBorder p="xs" mt="xl" bg="blue.0" radius="md">
+                <Text size="xs" ta="center" c="blue.8" fw={500}>
+                    Los datos presentados son de carácter confidencial para {user.empresa_nombre || 'la plataforma'}.
+                </Text>
+            </Paper>
         </Container>
     );
 };

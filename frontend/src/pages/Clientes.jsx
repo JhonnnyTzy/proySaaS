@@ -1,145 +1,232 @@
+import { 
+    Container, Title, Table, Group, Button, TextInput, ActionIcon, 
+    Modal, Stack, Badge, Select, Text, Card, Grid, Switch // <--- IMPORTANTE: Importar Switch
+} from '@mantine/core';
+import { IconEdit, IconPlus, IconSearch, IconUser, IconId, IconPhone, IconAt, IconBuildingStore, IconBriefcase } from '@tabler/icons-react';
+// (Ya no necesitamos IconTrash si no lo usas en otro lado)
 import { useState, useEffect } from 'react';
-import { Container, Table, Button, Group, Title, Card, Badge, ActionIcon, Text, Modal, TextInput } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconUserPlus, IconEdit, IconTrash, IconBuildingStore } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
-import { getCurrentUser } from '../services/auth'; // Importante para saber quién está logueado
-import { clienteService } from '../services/clienteService'; // Tu servicio de API
+import { getCurrentUser } from '../services/auth';
+import api from '../services/api';
 
 const Clientes = () => {
-    const user = getCurrentUser(); // Obtenemos el usuario (rol, id, etc.)
+    const user = getCurrentUser();
+    const isSuperAdmin = user?.rol === 'super_admin';
+
     const [clientes, setClientes] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [empresas, setEmpresas] = useState([]); 
+    const [busqueda, setBusqueda] = useState('');
+    const [modalAbierto, setModalAbierto] = useState(false);
+    const [modoEdicion, setModoEdicion] = useState(false);
+    
+    // Estado del formulario
+    const [form, setForm] = useState({
+        id_cliente: null, nombre: '', razon_social: '', ci_nit: '', 
+        telefono: '', email: '', estado: 'activo', microempresa_id_manual: null
+    });
 
-    // Estado para el formulario de registro (simplificado para el ejemplo)
-    const [opened, { open, close }] = useDisclosure(false);
-    const [nuevoCliente, setNuevoCliente] = useState({ nombre: '', nit: '', telefono: '' });
+    useEffect(() => {
+        cargarClientes();
+        if (isSuperAdmin) cargarEmpresas();
+    }, []);
 
-    const cargarDatos = async () => {
-        setLoading(true);
+    const cargarClientes = async () => {
         try {
-            const res = await clienteService.getClientes();
+            const res = await api.get('/clientes');
             setClientes(res.data);
         } catch (error) {
-            notifications.show({ title: 'Error', message: 'Error al cargar clientes', color: 'red' });
-        } finally {
-            setLoading(false);
+            console.error("Error cargando clientes");
         }
     };
 
-    useEffect(() => { cargarDatos(); }, []);
-
-    // Función para manejar el registro (Disponible para todos)
-    const handleRegistrar = async () => {
+    const cargarEmpresas = async () => {
         try {
-            // Los nombres de las propiedades deben coincidir EXACTAMENTE con el controlador
-            const datosParaEnviar = {
-                nombre_razon_social: nuevoCliente.nombre,
-                ci_nit: nuevoCliente.nit,
-                telefono: nuevoCliente.telefono,
-                email: "" // Enviamos vacío para que el backend lo convierta en NULL
-            };
-
-            await clienteService.createCliente(datosParaEnviar);
-            
-            notifications.show({ title: 'Éxito', message: 'Cliente registrado', color: 'green' });
-            close();
-            cargarDatos();
-            setNuevoCliente({ nombre: '', nit: '', telefono: '' });
+            const res = await api.get('/clientes/lista-empresas');
+            setEmpresas(res.data);
         } catch (error) {
-            console.error("Error en la petición:", error);
+            console.error("Error");
+        }
+    };
+
+    // --- LÓGICA DEL SWITCH ---
+    const handleToggleEstado = async (id, estadoActual) => {
+        // Calcular el nuevo estado
+        const nuevoEstado = estadoActual === 'activo' ? 'inactivo' : 'activo';
+
+        // 1. Actualización Optimista (Visualmente cambia rápido)
+        const clientesActualizados = clientes.map(c => 
+            c.id_cliente === id ? { ...c, estado: nuevoEstado } : c
+        );
+        setClientes(clientesActualizados);
+
+        try {
+            // 2. Llamada a la API
+            await api.put(`/clientes/${id}/toggle`, { nuevoEstado });
+            
             notifications.show({ 
-                title: 'Error', 
-                message: error.response?.data?.error || 'No se pudo registrar', 
-                color: 'red' 
+                title: 'Estado Actualizado', 
+                message: `Cliente ${nuevoEstado === 'activo' ? 'activado' : 'desactivado'}`, 
+                color: nuevoEstado === 'activo' ? 'green' : 'gray' 
             });
-        }
-    };
-
-    // Funciones de Edición/Borrado (Solo Admin y SuperAdmin)
-    const handleEliminar = async (id) => {
-        if (!confirm('¿Seguro que deseas eliminar este cliente?')) return;
-        try {
-            await clienteService.deleteCliente(id);
-            notifications.show({ title: 'Eliminado', message: 'Cliente desactivado', color: 'orange' });
-            cargarDatos();
         } catch (error) {
-            console.error(error);
+            // Si falla, revertimos el cambio visual
+            notifications.show({ title: 'Error', message: 'No se pudo cambiar el estado', color: 'red' });
+            cargarClientes(); 
         }
     };
 
-    // Renderizado de filas con lógica de roles
-    const rows = clientes.map((cli) => (
-        <Table.Tr key={cli.id_cliente}>
-            <Table.Td>{cli.nombre_razon_social}</Table.Td>
-            <Table.Td>{cli.ci_nit}</Table.Td>
-            <Table.Td>{cli.telefono}</Table.Td>
-            
-            {/* Columna extra SOLO para Super Admin */}
-            {user.rol === 'super_admin' && (
-                <Table.Td>
-                    <Badge color="grape" leftSection={<IconBuildingStore size={12}/>}>
-                        {cli.empresa_nombre || 'N/A'}
-                    </Badge>
-                </Table.Td>
-            )}
+    // ... (Funciones handleGuardar, abrirCrear, abrirEditar se mantienen igual) ...
+    // Solo copio las necesarias para que funcione el contexto:
 
-            <Table.Td>
-                <Group gap="xs">
-                    {/* LOGICA DE PERMISOS: Solo Admin y SuperAdmin ven botones de acción */}
-                    {['administrador', 'super_admin'].includes(user.rol) ? (
-                        <>
-                            <ActionIcon variant="light" color="blue" onClick={() => notifications.show({message: 'Función Editar (Punto 2)'})}>
-                                <IconEdit size={16} />
-                            </ActionIcon>
-                            <ActionIcon variant="light" color="red" onClick={() => handleEliminar(cli.id_cliente)}>
-                                <IconTrash size={16} />
-                            </ActionIcon>
-                        </>
-                    ) : (
-                        // El vendedor ve esto:
-                        <Badge variant="light" color="gray">Solo Lectura</Badge>
-                    )}
-                </Group>
-            </Table.Td>
-        </Table.Tr>
-    ));
+    const handleGuardar = async () => {
+         try {
+            if (modoEdicion) {
+                await api.put(`/clientes/${form.id_cliente}`, form);
+                notifications.show({ title: 'Actualizado', message: 'Cliente modificado', color: 'green' });
+            } else {
+                await api.post('/clientes', form);
+                notifications.show({ title: 'Creado', message: 'Cliente registrado', color: 'green' });
+            }
+            setModalAbierto(false);
+            cargarClientes();
+        } catch (error) {
+            notifications.show({ title: 'Error', message: 'No se pudo guardar', color: 'red' });
+        }
+    };
+
+    const abrirCrear = () => {
+        setForm({ 
+            id_cliente: null, nombre: '', razon_social: '', ci_nit: '', 
+            telefono: '', email: '', estado: 'activo', microempresa_id_manual: null 
+        });
+        setModoEdicion(false);
+        setModalAbierto(true);
+    };
+
+    const abrirEditar = (cliente) => {
+        setForm({
+            ...cliente,
+            razon_social: cliente.razon_social || '',
+            microempresa_id_manual: isSuperAdmin ? String(cliente.microempresa_id) : null
+        });
+        setModoEdicion(true);
+        setModalAbierto(true);
+    };
+
+    const clientesFiltrados = clientes.filter(c => 
+        c.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+        (c.razon_social && c.razon_social.toLowerCase().includes(busqueda.toLowerCase())) ||
+        c.ci_nit.includes(busqueda)
+    );
 
     return (
-        <Container size="xl">
+        <Container size="xl" py="xl">
             <Group justify="space-between" mb="lg">
-                <div>
-                    <Title order={2}>Cartera de Clientes</Title>
-                    <Text c="dimmed" size="sm">Vista de: {user.rol.toUpperCase()}</Text>
-                </div>
-                
-                {/* Botón visible para TODOS (incluido Vendedor) */}
-                <Button leftSection={<IconUserPlus size={18} />} onClick={open}>
-                    Nuevo Cliente
-                </Button>
+                <Title order={2}>Cartera de Clientes</Title>
+                <Button leftSection={<IconPlus size={18} />} onClick={abrirCrear} color="blue">Nuevo Cliente</Button>
             </Group>
 
-            <Card withBorder radius="md">
-                <Table striped highlightOnHover>
+            <Card shadow="sm" radius="md" withBorder>
+
+                
+                <TextInput 
+                        placeholder="Buscar por nombre, email, empresa..."
+                        leftSection={<IconSearch size={16} />}
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.currentTarget.value)}
+                        style={{ flex: 1 }} 
+                />
+
+                <Table striped highlightOnHover verticalSpacing="sm">
                     <Table.Thead>
                         <Table.Tr>
+                            <Table.Th>Nombre</Table.Th>
                             <Table.Th>Razón Social</Table.Th>
-                            <Table.Th>NIT/CI</Table.Th>
+                            <Table.Th>CI / NIT</Table.Th>
                             <Table.Th>Teléfono</Table.Th>
-                            {user.rol === 'super_admin' && <Table.Th>Empresa (Tenant)</Table.Th>}
+                            {isSuperAdmin && <Table.Th>Empresa</Table.Th>}
+                            <Table.Th>Estado</Table.Th>
                             <Table.Th>Acciones</Table.Th>
                         </Table.Tr>
                     </Table.Thead>
-                    <Table.Tbody>{rows}</Table.Tbody>
+                    <Table.Tbody>
+                        {clientesFiltrados.map((c) => (
+                            <Table.Tr key={c.id_cliente} style={{ opacity: c.estado === 'inactivo' ? 0.6 : 1 }}>
+                                <Table.Td fw={500}>{c.nombre}</Table.Td>
+                                <Table.Td>{c.razon_social || '-'}</Table.Td>
+                                <Table.Td>{c.ci_nit}</Table.Td>
+                                <Table.Td>{c.telefono || '-'}</Table.Td>
+                                
+                                {isSuperAdmin && (
+                                    <Table.Td><Badge variant="outline">{c.empresa_nombre}</Badge></Table.Td>
+                                )}
+
+                                <Table.Td>
+                                    <Badge color={c.estado === 'activo' ? 'green' : 'gray'} variant="light">
+                                        {c.estado.toUpperCase()}
+                                    </Badge>
+                                </Table.Td>
+
+                                <Table.Td>
+                                    <Group gap="md">
+                                        {/* BOTÓN EDITAR */}
+                                        <ActionIcon color="blue" variant="subtle" onClick={() => abrirEditar(c)}>
+                                            <IconEdit size={20} />
+                                        </ActionIcon>
+
+                                        {/* NUEVO: INTERRUPTOR ACTIVAR/DESACTIVAR */}
+                                        <Switch 
+                                            size="md"
+                                            onLabel="ON" 
+                                            offLabel="OFF"
+                                            color="green"
+                                            checked={c.estado === 'activo'}
+                                            onChange={() => handleToggleEstado(c.id_cliente, c.estado)}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                    </Group>
+                                </Table.Td>
+                            </Table.Tr>
+                        ))}
+                    </Table.Tbody>
                 </Table>
             </Card>
 
-            {/* Modal simple para registro */}
-            <Modal opened={opened} onClose={close} title="Registrar Cliente">
-                <TextInput label="Nombre" mb="sm" onChange={(e) => setNuevoCliente({...nuevoCliente, nombre: e.target.value})} />
-                <TextInput label="NIT/CI" mb="sm" onChange={(e) => setNuevoCliente({...nuevoCliente, nit: e.target.value})} />
-                <TextInput label="Teléfono" mb="lg" onChange={(e) => setNuevoCliente({...nuevoCliente, telefono: e.target.value})} />
-                <Button fullWidth onClick={handleRegistrar}>Guardar</Button>
+            {/* MODAL DE CREACIÓN/EDICIÓN (Mismo que tenías antes) */}
+            <Modal opened={modalAbierto} onClose={() => setModalAbierto(false)} title={modoEdicion ? "Editar" : "Nuevo"} size="lg">
+                 <Stack>
+                    {isSuperAdmin && (
+                        <Select
+                            label="Asignar a Empresa"
+                            searchable
+                            data={empresas.map(e => ({ value: String(e.id_microempresa), label: e.nombre }))}
+                            value={form.microempresa_id_manual ? String(form.microempresa_id_manual) : null}
+                            onChange={(val) => setForm({ ...form, microempresa_id_manual: val })}
+                        />
+                    )}
+                    <Grid>
+                        <Grid.Col span={6}>
+                            <TextInput label="Nombre" required value={form.nombre} onChange={(e) => setForm({...form, nombre: e.target.value})}/>
+                        </Grid.Col>
+                        <Grid.Col span={6}>
+                            <TextInput label="Razón Social" value={form.razon_social} onChange={(e) => setForm({...form, razon_social: e.target.value})}/>
+                        </Grid.Col>
+                    </Grid>
+                    <Grid>
+                        <Grid.Col span={6}>
+                            <TextInput label="CI/NIT" required value={form.ci_nit} onChange={(e) => setForm({...form, ci_nit: e.target.value})}/>
+                        </Grid.Col>
+                        <Grid.Col span={6}>
+                            <TextInput label="Teléfono" value={form.telefono} onChange={(e) => setForm({...form, telefono: e.target.value})}/>
+                        </Grid.Col>
+                    </Grid>
+                    <TextInput label="Email" value={form.email} onChange={(e) => setForm({...form, email: e.target.value})}/>
+                    
+                    <Group justify="flex-end" mt="md">
+                        <Button variant="default" onClick={() => setModalAbierto(false)}>Cancelar</Button>
+                        <Button onClick={handleGuardar}>Guardar</Button>
+                    </Group>
+                </Stack>
             </Modal>
         </Container>
     );
